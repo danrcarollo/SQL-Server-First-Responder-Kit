@@ -28,7 +28,8 @@ ALTER PROCEDURE dbo.sp_foreachdb
     @is_auto_shrink_on BIT = NULL ,
     @is_broker_enabled BIT = NULL , 
     @Help BIT = 0,
-	@VersionDate DATETIME = NULL OUTPUT
+	@VersionDate DATETIME = NULL OUTPUT,
+	@exclude_ag_secondary_dbs bit = 1
 AS
     BEGIN
         SET NOCOUNT ON;
@@ -217,6 +218,18 @@ IF @Help = 1
                                           AND ags.primary_replica <> @@SERVERNAME)'
                     ELSE ''
               END
+													  
+			+ CASE WHEN @exclude_ag_secondary_dbs = 1
+				   THEN 'AND d.database_id NOT IN (SELECT drs.database_id
+                                          FROM sys.dm_hadr_database_replica_states drs 
+                                          JOIN sys.availability_replicas ar
+                                                ON ar.replica_id = drs.replica_id
+                                          JOIN sys.dm_hadr_availability_group_states ags 
+                                                ON ags.group_id = ar.group_id
+                                          WHERE is_primary_replica = 0
+										  )'
+				   ELSE ''
+			  END
             + CASE WHEN @is_read_only IS NOT NULL
                    THEN ' AND d.is_read_only = ' + RTRIM(@is_read_only)
                    ELSE ''
